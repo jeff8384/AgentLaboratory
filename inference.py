@@ -101,7 +101,10 @@ def query_model(model_str, prompt, system_prompt, openai_api_key=None, gemini_ap
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": prompt}]
                 llama_api_key = openai_api_key or groq_api
-                if llama_api_key:
+                use_ollama = os.getenv("USE_OLLAMA", "").lower() in ["1", "true", "yes"]
+                if use_ollama:
+                    answer = local_llama_generate(messages, temperature=temp)
+                elif llama_api_key:
                     client = OpenAI(api_key=llama_api_key, base_url=os.getenv("GROQ_API_BASE", "https://api.groq.com/openai/v1"))
                     if temp is None:
                         completion = client.chat.completions.create(
