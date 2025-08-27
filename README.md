@@ -42,11 +42,19 @@
 
 ### 👾 Currently supported models
 
-* **Local**: llama-3.1-8b (set `LLAMA_31_8B_PATH` to a directory containing the downloaded model files—e.g. `models/llama-3.1-8b-instruct/` with `config.json`, `tokenizer.model`, etc.—to run fully offline)
+* **Local**: llama-3.1-8b (download from [Hugging Face](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct) and set the environment variable `LLAMA_31_8B_PATH` to a directory containing the model files—e.g. `models/llama-3.1-8b-instruct/` with `config.json`, `tokenizer.model`, etc.—to run fully offline)
 * **OpenAI**: o1, o1-preview, o1-mini, gpt-4o, o3-mini
 * **DeepSeek**: deepseek-chat (deepseek-v3)
 
 To select a specific llm set the flag `--llm-backend="llm_model"` for example `--llm-backend="gpt-4o"` or `--llm-backend="deepseek-chat"`. Please feel free to add a PR supporting new models according to your need! If no API key is provided, Agent Laboratory will attempt to use the local Llama model.
+
+To use the local model you must export `LLAMA_31_8B_PATH` before running:
+
+```bash
+export LLAMA_31_8B_PATH=/path/to/llama-3.1-8b-instruct
+```
+
+The directory should contain `config.json`, `tokenizer.model`, `tokenizer_config.json`, and other files from the model download.
 
 ## 🖥️ Installation
 

@@ -5,6 +5,7 @@ import os, anthropic, json
 import google.generativeai as genai
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
+import logging
 
 TOKENS_IN = dict()
 TOKENS_OUT = dict()
@@ -18,30 +19,65 @@ _LOCAL_LLAMA_MODEL = None
 _LOCAL_LLAMA_TOKENIZER = None
 
 
-def load_local_llama_model(model_path=None):
-    model_path = model_path or os.getenv("LLAMA_31_8B_PATH", "models/llama-3.1-8b-instruct")
+def load_local_llama_model(model_path=None, allow_remote: bool = False):
+    """Load the local LLaMA 3.1 8B model.
+
+    Parameters
+    ----------
+    model_path : str, optional
+        Path to the local model directory. If ``None`` the function will
+        look for the ``LLAMA_31_8B_PATH`` environment variable and fall
+        back to ``models/llama-3.1-8b-instruct``.
+    allow_remote : bool, optional
+        If ``True``, missing files are downloaded from Hugging Face and,
+        when no local directory is found, the model is fetched directly
+        from the hub. Defaults to ``False``.
+    """
+
+    env_path = os.getenv("LLAMA_31_8B_PATH")
+    if env_path is None:
+        logging.warning(
+            "LLAMA_31_8B_PATH is not set. Download the model from "
+            "https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct and set "
+            "LLAMA_31_8B_PATH to the directory containing files such as "
+            "config.json and tokenizer.model."
+        )
+
+    model_path = model_path or env_path or "models/llama-3.1-8b-instruct"
     global _LOCAL_LLAMA_MODEL, _LOCAL_LLAMA_TOKENIZER
     if _LOCAL_LLAMA_MODEL is None or _LOCAL_LLAMA_TOKENIZER is None:
-        # Verify model path exists and contains essential files before loading
-        if not os.path.isdir(model_path):
-            raise FileNotFoundError(
-                f"Local LLaMA model directory '{model_path}' not found. "
-                "Download the model locally and set LLAMA_31_8B_PATH to the directory containing the model.\n"
-                "Expected structure: <model_path>/config.json, tokenizer.model, tokenizer_config.json, ..."
+        if os.path.isdir(model_path):
+            config_path = os.path.join(model_path, "config.json")
+            if not os.path.isfile(config_path):
+                raise FileNotFoundError(
+                    f"Expected config.json inside '{model_path}' but none was found. "
+                    "Ensure the model directory contains config.json and tokenizer files."
+                )
+            local_only = not allow_remote
+            _LOCAL_LLAMA_TOKENIZER = AutoTokenizer.from_pretrained(
+                model_path, local_files_only=local_only
             )
-        config_path = os.path.join(model_path, "config.json")
-        if not os.path.isfile(config_path):
+            _LOCAL_LLAMA_MODEL = AutoModelForCausalLM.from_pretrained(
+                model_path, local_files_only=local_only
+            )
+        elif allow_remote:
+            repo_id = "meta-llama/Llama-3.1-8B-Instruct"
+            _LOCAL_LLAMA_TOKENIZER = AutoTokenizer.from_pretrained(repo_id)
+            _LOCAL_LLAMA_MODEL = AutoModelForCausalLM.from_pretrained(repo_id)
+        else:
+            logging.warning(
+                "Local LLaMA model directory '%s' not found. Download the model "
+                "from https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct and "
+                "set LLAMA_31_8B_PATH to the directory containing the model.",
+                model_path,
+            )
             raise FileNotFoundError(
-                f"Expected config.json inside '{model_path}' but none was found. "
-                "Ensure the model directory contains config.json and tokenizer files."
+                f"Local LLaMA model directory '{model_path}' not found."
             )
 
-        _LOCAL_LLAMA_TOKENIZER = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
-        _LOCAL_LLAMA_MODEL = AutoModelForCausalLM.from_pretrained(model_path, local_files_only=True)
         device = "cuda" if torch.cuda.is_available() else "cpu"
         _LOCAL_LLAMA_MODEL.to(device).eval()
     return _LOCAL_LLAMA_MODEL, _LOCAL_LLAMA_TOKENIZER
-
 
 def local_llama_generate(messages, temperature=None, max_new_tokens=512):
     model, tokenizer = load_local_llama_model()
