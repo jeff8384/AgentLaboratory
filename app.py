@@ -167,5 +167,5 @@ def run_app(port=5000):
         os.makedirs(app.config['UPLOAD_FOLDER'])
     app.run(debug=False, port=port)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_app()
