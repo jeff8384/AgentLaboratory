@@ -10,7 +10,7 @@ from mlesolver import MLESolver
 import argparse, pickle, yaml
 
 GLOBAL_AGENTRXIV = None
-DEFAULT_LLM_BACKBONE = "o3-mini"
+DEFAULT_LLM_BACKBONE = "llama-3.1-8b"
 RESEARCH_DIR_PATH = "MATH_research_dir"
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -633,7 +633,7 @@ class AgentRxiv:
                         prompt=self.pdf_text[arxiv_id],
                         system_prompt="Please provide a 5 sentence summary of this paper.",
                         openai_api_key=os.getenv('OPENAI_API_KEY'),
-                        model_str="gpt-4o-mini"
+                        model_str="llama-3.1-8b"
                     )
                 return_str += f"Title: {result['filename']}"
                 return_str += f"Summary: {self.summaries[arxiv_id]}\n"
@@ -678,9 +678,9 @@ def parse_yaml(yaml_file_loc):
     if 'compile-latex' in agentlab_data: parser.compile_latex = agentlab_data["compile-latex"]
     else: parser.compile_latex = True
     if 'llm-backend' in agentlab_data: parser.llm_backend = agentlab_data["llm-backend"]
-    else: parser.llm_backend = "o3-mini"
+    else: parser.llm_backend = "llama-3.1-8b"
     if 'lit-review-backend' in agentlab_data: parser.lit_review_backend = agentlab_data["lit-review-backend"]
-    else: parser.lit_review_backend = "gpt-4o-mini"
+    else: parser.lit_review_backend = "llama-3.1-8b"
     if 'language' in agentlab_data: parser.language = agentlab_data["language"]
     else: parser.language = "English"
     if 'num-papers-lit-review' in agentlab_data: parser.num_papers_lit_review = agentlab_data["num-papers-lit-review"]
@@ -744,7 +744,8 @@ if __name__ == "__main__":
     if api_key is not None and os.getenv('OPENAI_API_KEY') is None: os.environ["OPENAI_API_KEY"] = args.api_key
     if deepseek_api_key is not None and os.getenv('DEEPSEEK_API_KEY') is None: os.environ["DEEPSEEK_API_KEY"] = args.deepseek_api_key
 
-    if not api_key and not deepseek_api_key: raise ValueError("API key must be provided via --api-key / -deepseek-api-key or the OPENAI_API_KEY / DEEPSEEK_API_KEY environment variable.")
+    if not api_key and not deepseek_api_key:
+        print("No API key provided; attempting to use local models.")
 
     if human_mode or args.research_topic is None: research_topic = input("Please name an experiment idea for AgentLaboratory to perform: ")
     else: research_topic = args.research_topic

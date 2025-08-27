@@ -3,14 +3,46 @@ import time, tiktoken
 from openai import OpenAI
 import os, anthropic, json
 import google.generativeai as genai
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
 
 TOKENS_IN = dict()
 TOKENS_OUT = dict()
 
-encoding = tiktoken.get_encoding("cl100k_base")
+try:
+    encoding = tiktoken.get_encoding("cl100k_base")
+except Exception:
+    encoding = None
+
+_LOCAL_LLAMA_MODEL = None
+_LOCAL_LLAMA_TOKENIZER = None
+
+
+def load_local_llama_model(model_path=None):
+    model_path = model_path or os.getenv("LLAMA_31_8B_PATH", "models/llama-3.1-8b-instruct")
+    global _LOCAL_LLAMA_MODEL, _LOCAL_LLAMA_TOKENIZER
+    if _LOCAL_LLAMA_MODEL is None or _LOCAL_LLAMA_TOKENIZER is None:
+        _LOCAL_LLAMA_TOKENIZER = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
+        _LOCAL_LLAMA_MODEL = AutoModelForCausalLM.from_pretrained(model_path, local_files_only=True)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        _LOCAL_LLAMA_MODEL.to(device).eval()
+    return _LOCAL_LLAMA_MODEL, _LOCAL_LLAMA_TOKENIZER
+
+
+def local_llama_generate(messages, temperature=None, max_new_tokens=512):
+    model, tokenizer = load_local_llama_model()
+    device = model.device
+    inputs = tokenizer.apply_chat_template(messages, return_tensors="pt").to(device)
+    gen_kwargs = {"max_new_tokens": max_new_tokens}
+    if temperature is not None and temperature > 0:
+        gen_kwargs.update({"do_sample": True, "temperature": temperature})
+    with torch.no_grad():
+        outputs = model.generate(inputs, **gen_kwargs)
+    return tokenizer.decode(outputs[0, inputs.shape[-1]:], skip_special_tokens=True).strip()
 
 def curr_cost_est():
     costmap_in = {
+        "llama-3.1-8b": 0.20 / 1000000,
         "gpt-4o": 2.50 / 1000000,
         "gpt-4o-mini": 0.150 / 1000000,
         "o1-preview": 15.00 / 1000000,
@@ -21,6 +53,7 @@ def curr_cost_est():
         "o3-mini": 1.10 / 1000000,
     }
     costmap_out = {
+        "llama-3.1-8b": 0.80 / 1000000,
         "gpt-4o": 10.00/ 1000000,
         "gpt-4o-mini": 0.6 / 1000000,
         "o1-preview": 60.00 / 1000000,
@@ -34,10 +67,12 @@ def curr_cost_est():
 
 def query_model(model_str, prompt, system_prompt, openai_api_key=None, gemini_api_key=None,  anthropic_api_key=None, tries=5, timeout=5.0, temp=None, print_cost=True, version="1.5"):
     preloaded_api = os.getenv('OPENAI_API_KEY')
+    groq_api = os.getenv('GROQ_API_KEY')
     if openai_api_key is None and preloaded_api is not None:
         openai_api_key = preloaded_api
-    if openai_api_key is None and anthropic_api_key is None:
-        raise Exception("No API key provided in query_model function")
+    if openai_api_key is None and anthropic_api_key is None and groq_api is None:
+        if model_str not in ["llama-3.1-8b", "llama3.1-8b", "Llama 3.1:8B", "llama-3.1-8B"]:
+            raise Exception("No API key provided in query_model function")
     if openai_api_key is not None:
         openai.api_key = openai_api_key
         os.environ["OPENAI_API_KEY"] = openai_api_key
@@ -47,7 +82,24 @@ def query_model(model_str, prompt, system_prompt, openai_api_key=None, gemini_ap
         os.environ["GEMINI_API_KEY"] = gemini_api_key
     for _ in range(tries):
         try:
-            if model_str == "gpt-4o-mini" or model_str == "gpt4omini" or model_str == "gpt-4omini" or model_str == "gpt4o-mini":
+            if model_str in ["llama-3.1-8b", "llama3.1-8b", "Llama 3.1:8B", "llama-3.1-8B"]:
+                messages = [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": prompt}]
+                llama_api_key = openai_api_key or groq_api
+                if llama_api_key:
+                    client = OpenAI(api_key=llama_api_key, base_url=os.getenv("GROQ_API_BASE", "https://api.groq.com/openai/v1"))
+                    if temp is None:
+                        completion = client.chat.completions.create(
+                            model="llama-3.1-8b-instruct", messages=messages,)
+                    else:
+                        completion = client.chat.completions.create(
+                            model="llama-3.1-8b-instruct", messages=messages, temperature=temp)
+                    answer = completion.choices[0].message.content
+                else:
+                    answer = local_llama_generate(messages, temperature=temp)
+
+            elif model_str == "gpt-4o-mini" or model_str == "gpt4omini" or model_str == "gpt-4omini" or model_str == "gpt4o-mini":
                 model_str = "gpt-4o-mini"
                 messages = [
                     {"role": "system", "content": system_prompt},
@@ -190,7 +242,7 @@ def query_model(model_str, prompt, system_prompt, openai_api_key=None, gemini_ap
             try:
                 if model_str in ["o1-preview", "o1-mini", "claude-3.5-sonnet", "o1", "o3-mini"]:
                     encoding = tiktoken.encoding_for_model("gpt-4o")
-                elif model_str in ["deepseek-chat"]:
+                elif model_str in ["deepseek-chat", "llama-3.1-8b"]:
                     encoding = tiktoken.encoding_for_model("cl100k_base")
                 else:
                     encoding = tiktoken.encoding_for_model(model_str)

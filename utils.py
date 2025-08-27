@@ -6,6 +6,7 @@ import subprocess, string
 from openai import OpenAI
 import google.generativeai as genai
 from huggingface_hub import InferenceClient
+from inference import local_llama_generate
 
 
 def query_deepseekv3(prompt, system, api_key, attempt=0, temperature=0.0):
@@ -50,11 +51,8 @@ def query_qwen(prompt, system, api_key, attempt=0, temperature=0.0):
         return query_qwen(prompt, system, attempt+1)
 
 
-def query_gpt4omini(prompt, system, api_key, attempt=0, temperature=0.0):
+def query_llama31_8b(prompt, system, api_key, attempt=0, temperature=0.0):
     try:
-        openai_api_key = api_key
-        openai.api_key = openai_api_key
-        os.environ["OPENAI_API_KEY"] = openai_api_key
         if system is not None:
             messages = [
                 {"role": "system", "content": system},
@@ -62,14 +60,21 @@ def query_gpt4omini(prompt, system, api_key, attempt=0, temperature=0.0):
         else:
             messages = [
                 {"role": "user", "content": prompt}]
-        client = OpenAI()
+        if api_key is None:
+            response = local_llama_generate(messages, temperature=temperature)
+            return response
+        client = OpenAI(api_key=api_key, base_url=os.getenv("GROQ_API_BASE", "https://api.groq.com/openai/v1"))
         response = client.chat.completions.create(
-            model="gpt-4o-mini", messages=messages, temperature=temperature).choices[0].message.content.strip()
+            model="llama-3.1-8b-instruct", messages=messages, temperature=temperature).choices[0].message.content.strip()
         return response
     except Exception as e:
-        print(f"Query 4o-mini error: {e}")
-        if attempt >= 10: return f"Your attempt to inference gemini failed: {e}"
-        return query_gpt4omini(prompt, system, attempt+1)
+        print(f"Query llama-3.1-8b error: {e}")
+        if attempt >= 10: return f"Your attempt to inference llama-3.1-8b failed: {e}"
+        return query_llama31_8b(prompt, system, api_key, attempt+1, temperature)
+
+
+def query_gpt4omini(prompt, system, api_key, attempt=0, temperature=0.0):
+    return query_llama31_8b(prompt, system, api_key, attempt, temperature)
 
 
 
