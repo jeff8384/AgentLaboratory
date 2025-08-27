@@ -42,7 +42,7 @@
 
 ### 👾 Currently supported models
 
-* **Local**: llama-3.1-8b (set `LLAMA_31_8B_PATH` to the directory containing the model to run fully offline)
+* **Local**: llama-3.1-8b (set `LLAMA_31_8B_PATH` to a directory containing the downloaded model files—e.g. `models/llama-3.1-8b-instruct/` with `config.json`, `tokenizer.model`, etc.—to run fully offline)
 * **OpenAI**: o1, o1-preview, o1-mini, gpt-4o, o3-mini
 * **DeepSeek**: deepseek-chat (deepseek-v3)
 

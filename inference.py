@@ -22,6 +22,20 @@ def load_local_llama_model(model_path=None):
     model_path = model_path or os.getenv("LLAMA_31_8B_PATH", "models/llama-3.1-8b-instruct")
     global _LOCAL_LLAMA_MODEL, _LOCAL_LLAMA_TOKENIZER
     if _LOCAL_LLAMA_MODEL is None or _LOCAL_LLAMA_TOKENIZER is None:
+        # Verify model path exists and contains essential files before loading
+        if not os.path.isdir(model_path):
+            raise FileNotFoundError(
+                f"Local LLaMA model directory '{model_path}' not found. "
+                "Download the model locally and set LLAMA_31_8B_PATH to the directory containing the model.\n"
+                "Expected structure: <model_path>/config.json, tokenizer.model, tokenizer_config.json, ..."
+            )
+        config_path = os.path.join(model_path, "config.json")
+        if not os.path.isfile(config_path):
+            raise FileNotFoundError(
+                f"Expected config.json inside '{model_path}' but none was found. "
+                "Ensure the model directory contains config.json and tokenizer files."
+            )
+
         _LOCAL_LLAMA_TOKENIZER = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
         _LOCAL_LLAMA_MODEL = AutoModelForCausalLM.from_pretrained(model_path, local_files_only=True)
         device = "cuda" if torch.cuda.is_available() else "cpu"
