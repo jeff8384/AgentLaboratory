@@ -60,7 +60,8 @@ def query_llama31_8b(prompt, system, api_key, attempt=0, temperature=0.0):
         else:
             messages = [
                 {"role": "user", "content": prompt}]
-        if api_key is None:
+        use_ollama = os.getenv("USE_OLLAMA", "").lower() in ["1", "true", "yes"]
+        if api_key is None or use_ollama:
             response = local_llama_generate(messages, temperature=temperature)
             return response
         client = OpenAI(api_key=api_key, base_url=os.getenv("GROQ_API_BASE", "https://api.groq.com/openai/v1"))

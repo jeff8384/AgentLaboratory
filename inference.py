@@ -20,9 +20,27 @@ def local_llama_generate(messages, temperature=None, max_new_tokens=512):
     }
     if temperature is not None:
         payload["options"]["temperature"] = temperature
-    response = requests.post("http://localhost:11434/api/chat", json=payload)
-    response.raise_for_status()
-    return response.json()["message"]["content"].strip()
+    try:
+        response = requests.post("http://localhost:11434/api/chat", json=payload)
+        response.raise_for_status()
+        return response.json()["message"]["content"].strip()
+    except requests.HTTPError as e:
+        if e.response is None or e.response.status_code != 404:
+            raise
+        prompt = "\n".join(
+            f"{m['role']}: {m['content']}" for m in messages
+        ) + "\nassistant:"
+        payload = {
+            "model": "llama-3.1-8b",
+            "prompt": prompt,
+            "stream": False,
+            "options": {"num_predict": max_new_tokens},
+        }
+        if temperature is not None:
+            payload["options"]["temperature"] = temperature
+        response = requests.post("http://localhost:11434/api/generate", json=payload)
+        response.raise_for_status()
+        return response.json()["response"].strip()
 
 
 def curr_cost_est():
