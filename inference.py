@@ -46,7 +46,12 @@ def load_local_llama_model(model_path=None):
 def local_llama_generate(messages, temperature=None, max_new_tokens=512):
     model, tokenizer = load_local_llama_model()
     device = model.device
-    inputs = tokenizer.apply_chat_template(messages, return_tensors="pt").to(device)
+    inputs = tokenizer.apply_chat_template(
+        messages,
+        tokenize=True,
+        add_generation_prompt=True,
+        return_tensors="pt"
+    ).to(device)
     gen_kwargs = {"max_new_tokens": max_new_tokens}
     if temperature is not None and temperature > 0:
         gen_kwargs.update({"do_sample": True, "temperature": temperature})
