@@ -182,7 +182,7 @@ def get_score(outlined_plan, latex, reward_model_llm, reviewer_type=None, attemp
 
 
 class ReviewersAgent:
-    def __init__(self, model="gpt-4o-mini", notes=None, openai_api_key=None):
+    def __init__(self, model="llama-3.1-8b", notes=None, openai_api_key=None):
         if notes is None: self.notes = []
         else: self.notes = notes
         self.model = model
@@ -202,7 +202,7 @@ class ReviewersAgent:
 
 
 class BaseAgent:
-    def __init__(self, model="gpt-4o-mini", notes=None, max_steps=100, openai_api_key=None):
+    def __init__(self, model="llama-3.1-8b", notes=None, max_steps=100, openai_api_key=None):
         if notes is None: self.notes = []
         else: self.notes = notes
         self.max_steps = max_steps
@@ -297,7 +297,7 @@ class BaseAgent:
 
 
 class ProfessorAgent(BaseAgent):
-    def __init__(self, model="gpt4omini", notes=None, max_steps=100, openai_api_key=None):
+    def __init__(self, model="llama-3.1-8b", notes=None, max_steps=100, openai_api_key=None):
         super().__init__(model, notes, max_steps, openai_api_key)
         self.phases = ["report writing"]
 
@@ -363,7 +363,7 @@ class ProfessorAgent(BaseAgent):
 
 
 class PostdocAgent(BaseAgent):
-    def __init__(self, model="gpt4omini", notes=None, max_steps=100, openai_api_key=None):
+    def __init__(self, model="llama-3.1-8b", notes=None, max_steps=100, openai_api_key=None):
         super().__init__(model, notes, max_steps, openai_api_key)
         self.phases = ["plan formulation", "results interpretation"]
 
@@ -439,7 +439,7 @@ class PostdocAgent(BaseAgent):
 
 
 class MLEngineerAgent(BaseAgent):
-    def __init__(self, model="gpt4omini", notes=None, max_steps=100, openai_api_key=None):
+    def __init__(self, model="llama-3.1-8b", notes=None, max_steps=100, openai_api_key=None):
         super().__init__(model, notes, max_steps, openai_api_key)
         self.phases = [
             "data preparation",
@@ -505,7 +505,7 @@ class MLEngineerAgent(BaseAgent):
 
 
 class SWEngineerAgent(BaseAgent):
-    def __init__(self, model="gpt4omini", notes=None, max_steps=100, openai_api_key=None):
+    def __init__(self, model="llama-3.1-8b", notes=None, max_steps=100, openai_api_key=None):
         super().__init__(model, notes, max_steps, openai_api_key)
         self.phases = [
             "data preparation",
@@ -561,7 +561,7 @@ class SWEngineerAgent(BaseAgent):
 
 
 class PhDStudentAgent(BaseAgent):
-    def __init__(self, model="gpt4omini", notes=None, max_steps=100, openai_api_key=None):
+    def __init__(self, model="llama-3.1-8b", notes=None, max_steps=100, openai_api_key=None):
         super().__init__(model, notes, max_steps, openai_api_key)
         self.phases = [
             "literature review",

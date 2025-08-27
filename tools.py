@@ -27,7 +27,21 @@ class HFDataSearch:
         """
         self.dwn_thr = dwn_thr
         self.like_thr = like_thr
-        self.ds = load_dataset("nkasmanoff/huggingface-datasets")["train"]
+        # The dataset listing all Hugging Face datasets lives on the Hub. In
+        # restricted environments this request may fail (e.g. missing network or
+        # proxy issues) which previously raised an exception during
+        # initialisation.  Handle these failures gracefully so the utility can be
+        # imported without crashing.
+        try:
+            self.ds = load_dataset("nkasmanoff/huggingface-datasets", trust_remote_code=True)["train"]
+        except Exception as e:
+            print(f"Failed to load huggingface dataset index: {e}")
+            self.ds = []
+            self.descriptions = []
+            self.likes_norm = []
+            self.downloads_norm = []
+            self.description_vectors = None
+            return
 
         # Initialize lists to collect filtered data
         filtered_indices = []
@@ -98,6 +112,9 @@ class HFDataSearch:
         if not self.ds or self.description_vectors is None:
             print("No datasets available to search.")
             return []
+
+        # Avoid requesting more results than available datasets
+        N = min(N, len(self.ds))
 
         query_vector = self.vectorizer.transform([query])
         cosine_similarities = linear_kernel(query_vector, self.description_vectors).flatten()
