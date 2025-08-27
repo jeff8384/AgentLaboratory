@@ -1,7 +1,7 @@
 import openai
 import time, tiktoken
 from openai import OpenAI
-import os, anthropic, json
+import os, anthropic, json, requests
 import google.generativeai as genai
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
@@ -22,6 +22,20 @@ def load_local_llama_model(model_path=None):
     model_path = model_path or os.getenv("LLAMA_31_8B_PATH", "models/llama-3.1-8b-instruct")
     global _LOCAL_LLAMA_MODEL, _LOCAL_LLAMA_TOKENIZER
     if _LOCAL_LLAMA_MODEL is None or _LOCAL_LLAMA_TOKENIZER is None:
+        # Verify model path exists and contains essential files before loading
+        if not os.path.isdir(model_path):
+            raise FileNotFoundError(
+                f"Local LLaMA model directory '{model_path}' not found. "
+                "Download the model locally and set LLAMA_31_8B_PATH to the directory containing the model.\n"
+                "Expected structure: <model_path>/config.json, tokenizer.model, tokenizer_config.json, ..."
+            )
+        config_path = os.path.join(model_path, "config.json")
+        if not os.path.isfile(config_path):
+            raise FileNotFoundError(
+                f"Expected config.json inside '{model_path}' but none was found. "
+                "Ensure the model directory contains config.json and tokenizer files."
+            )
+
         _LOCAL_LLAMA_TOKENIZER = AutoTokenizer.from_pretrained(model_path, local_files_only=True)
         _LOCAL_LLAMA_MODEL = AutoModelForCausalLM.from_pretrained(model_path, local_files_only=True)
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -29,16 +43,39 @@ def load_local_llama_model(model_path=None):
     return _LOCAL_LLAMA_MODEL, _LOCAL_LLAMA_TOKENIZER
 
 
+def ollama_chat(messages, temperature=None, max_new_tokens=512):
+    base_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    model_name = os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+    payload = {"model": model_name, "messages": messages, "stream": False}
+    options = {}
+    if temperature is not None:
+        options["temperature"] = temperature
+    if max_new_tokens is not None:
+        options["num_predict"] = max_new_tokens
+    if options:
+        payload["options"] = options
+    resp = requests.post(f"{base_url}/api/chat", json=payload, timeout=60)
+    resp.raise_for_status()
+    return resp.json()["message"]["content"].strip()
+
+
 def local_llama_generate(messages, temperature=None, max_new_tokens=512):
-    model, tokenizer = load_local_llama_model()
-    device = model.device
-    inputs = tokenizer.apply_chat_template(messages, return_tensors="pt").to(device)
-    gen_kwargs = {"max_new_tokens": max_new_tokens}
-    if temperature is not None and temperature > 0:
-        gen_kwargs.update({"do_sample": True, "temperature": temperature})
-    with torch.no_grad():
-        outputs = model.generate(inputs, **gen_kwargs)
-    return tokenizer.decode(outputs[0, inputs.shape[-1]:], skip_special_tokens=True).strip()
+    use_ollama = os.getenv("USE_OLLAMA", "").lower() in ["1", "true", "yes"]
+    if not use_ollama:
+        try:
+            model, tokenizer = load_local_llama_model()
+            device = model.device
+            inputs = tokenizer.apply_chat_template(messages, return_tensors="pt").to(device)
+            gen_kwargs = {"max_new_tokens": max_new_tokens}
+            if temperature is not None and temperature > 0:
+                gen_kwargs.update({"do_sample": True, "temperature": temperature})
+            with torch.no_grad():
+                outputs = model.generate(inputs, **gen_kwargs)
+            return tokenizer.decode(outputs[0, inputs.shape[-1]:], skip_special_tokens=True).strip()
+        except FileNotFoundError:
+            use_ollama = True
+    if use_ollama:
+        return ollama_chat(messages, temperature=temperature, max_new_tokens=max_new_tokens)
 
 def curr_cost_est():
     costmap_in = {

@@ -42,7 +42,9 @@
 
 ### 👾 Currently supported models
 
-* **Local**: llama-3.1-8b (set `LLAMA_31_8B_PATH` to the directory containing the model to run fully offline)
+* **Local**: llama-3.1-8b
+  - Hugging Face format: set `LLAMA_31_8B_PATH` to a directory containing the downloaded model files—e.g. `models/llama-3.1-8b-instruct/` with `config.json`, `tokenizer.model`, etc.—to run fully offline
+  - Ollama backend: install [Ollama](https://ollama.com/), pull `llama3.1:8b`, and optionally set `USE_OLLAMA=1` to force its use. The code falls back to Ollama automatically when the Hugging Face model path is missing. `OLLAMA_MODEL` and `OLLAMA_BASE_URL` can customize the model name or server URL
 * **OpenAI**: o1, o1-preview, o1-mini, gpt-4o, o3-mini
 * **DeepSeek**: deepseek-chat (deepseek-v3)
 
