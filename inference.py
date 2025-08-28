@@ -6,6 +6,7 @@ import google.generativeai as genai
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 import logging
+import requests
 
 TOKENS_IN = dict()
 TOKENS_OUT = dict()
@@ -95,6 +96,38 @@ def local_llama_generate(messages, temperature=None, max_new_tokens=512):
         outputs = model.generate(inputs, **gen_kwargs)
     return tokenizer.decode(outputs[0, inputs.shape[-1]:], skip_special_tokens=True).strip()
 
+
+def ollama_llama_generate(messages, temperature=None, max_new_tokens=512, model_name=None):
+    """Generate a response using a locally running Ollama server.
+
+    Parameters
+    ----------
+    messages : list
+        Conversation messages in the same format used by query_model.
+    temperature : float, optional
+        Sampling temperature for generation. If ``None`` no temperature is set.
+    max_new_tokens : int, optional
+        Maximum number of tokens to generate. Defaults to 512.
+    model_name : str, optional
+        Name of the Ollama model to use. If ``None`` the ``OLLAMA_MODEL``
+        environment variable or ``"llama3.1:8b"`` is used.
+    """
+
+    model_name = model_name or os.getenv("OLLAMA_MODEL", "llama3.1:8b")
+    url = os.getenv("OLLAMA_API_BASE", "http://localhost:11434/api/chat")
+    payload = {
+        "model": model_name,
+        "messages": messages,
+        "stream": False,
+        "options": {"num_predict": max_new_tokens},
+    }
+    if temperature is not None and temperature > 0:
+        payload["options"]["temperature"] = temperature
+    response = requests.post(url, json=payload)
+    response.raise_for_status()
+    data = response.json()
+    return data.get("message", {}).get("content", "").strip()
+
 def curr_cost_est():
     costmap_in = {
         "llama-3.1-8b": 0.20 / 1000000,
@@ -126,7 +159,7 @@ def query_model(model_str, prompt, system_prompt, openai_api_key=None, gemini_ap
     if openai_api_key is None and preloaded_api is not None:
         openai_api_key = preloaded_api
     if openai_api_key is None and anthropic_api_key is None and groq_api is None:
-        if model_str not in ["llama-3.1-8b", "llama3.1-8b", "Llama 3.1:8B", "llama-3.1-8B"]:
+        if model_str not in ["llama-3.1-8b", "llama3.1-8b", "llama3.1:8b", "Llama 3.1:8B", "llama-3.1-8B"]:
             raise Exception("No API key provided in query_model function")
     if openai_api_key is not None:
         openai.api_key = openai_api_key
@@ -137,25 +170,35 @@ def query_model(model_str, prompt, system_prompt, openai_api_key=None, gemini_ap
         os.environ["GEMINI_API_KEY"] = gemini_api_key
     for _ in range(tries):
         try:
-            if model_str in ["llama-3.1-8b", "llama3.1-8b", "Llama 3.1:8B", "llama-3.1-8B"]:
+            if model_str in ["llama-3.1-8b", "llama3.1-8b", "llama3.1:8b", "Llama 3.1:8B", "llama-3.1-8B"]:
                 messages = [
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}]
+                    {"role": "user", "content": prompt},
+                ]
                 llama_api_key = openai_api_key or groq_api
                 use_ollama = os.getenv("USE_OLLAMA", "").lower() in ["1", "true", "yes"]
-                if use_ollama:
-                    answer = local_llama_generate(messages, temperature=temp)
+                local_model_dir = os.getenv("LLAMA_31_8B_PATH") or "models/llama-3.1-8b-instruct"
+                has_local_model = os.path.isdir(local_model_dir)
+
+                if use_ollama or (not has_local_model and not llama_api_key):
+                    answer = ollama_llama_generate(messages, temperature=temp)
                 elif llama_api_key:
-                    client = OpenAI(api_key=llama_api_key, base_url=os.getenv("GROQ_API_BASE", "https://api.groq.com/openai/v1"))
+                    client = OpenAI(
+                        api_key=llama_api_key,
+                        base_url=os.getenv("GROQ_API_BASE", "https://api.groq.com/openai/v1"),
+                    )
                     if temp is None:
                         completion = client.chat.completions.create(
-                            model="llama-3.1-8b-instruct", messages=messages,)
+                            model="llama-3.1-8b-instruct", messages=messages,
+                        )
                     else:
                         completion = client.chat.completions.create(
-                            model="llama-3.1-8b-instruct", messages=messages, temperature=temp)
+                            model="llama-3.1-8b-instruct", messages=messages, temperature=temp
+                        )
                     answer = completion.choices[0].message.content
                 else:
                     answer = local_llama_generate(messages, temperature=temp)
+                model_str = "llama-3.1-8b"
 
             elif model_str == "gpt-4o-mini" or model_str == "gpt4omini" or model_str == "gpt-4omini" or model_str == "gpt4o-mini":
                 model_str = "gpt-4o-mini"

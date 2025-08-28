@@ -43,6 +43,7 @@
 ### 👾 Currently supported models
 
 * **Local**: llama-3.1-8b (download from [Hugging Face](https://huggingface.co/meta-llama/Llama-3.1-8B-Instruct) and set the environment variable `LLAMA_31_8B_PATH` to a directory containing the model files—e.g. `models/llama-3.1-8b-instruct/` with `config.json`, `tokenizer.model`, etc.—to run fully offline)
+* **Ollama**: set `USE_OLLAMA=true` to route llama requests to a locally running [Ollama](https://ollama.ai) server (default `http://localhost:11434`); customize the model via `OLLAMA_MODEL` (defaults to `llama3.1:8b`)
 * **OpenAI**: o1, o1-preview, o1-mini, gpt-4o, o3-mini
 * **DeepSeek**: deepseek-chat (deepseek-v3)
 
