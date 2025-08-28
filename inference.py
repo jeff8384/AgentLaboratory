@@ -110,10 +110,6 @@ def ollama_llama_generate(messages, temperature=None, max_new_tokens=512, model_
         Maximum number of tokens to generate. Defaults to 512.
     model_name : str, optional
         Name of the Ollama model to use. If ``None`` the ``OLLAMA_MODEL``
-        environment variable or ``"llama3.1:8b"`` is used.
-    """
-
-    model_name = model_name or os.getenv("OLLAMA_MODEL", "llama3.1:8b")
     url = os.getenv("OLLAMA_API_BASE", "http://localhost:11434/api/chat")
     payload = {
         "model": model_name,
@@ -177,10 +173,6 @@ def query_model(model_str, prompt, system_prompt, openai_api_key=None, gemini_ap
                 ]
                 llama_api_key = openai_api_key or groq_api
                 use_ollama = os.getenv("USE_OLLAMA", "").lower() in ["1", "true", "yes"]
-                local_model_dir = os.getenv("LLAMA_31_8B_PATH") or "models/llama-3.1-8b-instruct"
-                has_local_model = os.path.isdir(local_model_dir)
-
-                if use_ollama or (not has_local_model and not llama_api_key):
                     answer = ollama_llama_generate(messages, temperature=temp)
                 elif llama_api_key:
                     client = OpenAI(
